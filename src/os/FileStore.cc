@@ -2923,9 +2923,7 @@ int FileStore::_write(coll_t cid, const hobject_t& oid,
     if (fd < 0) {
       dout(10) << " file did not exist" << dendl;
     } else {
-      struct stat st;
-      ::fstat(fd, &st);
-      dout(10) << " file did exist, with size " << st.st_size << " blocks " << st.st_blocks << dendl;
+      dout(10) << " file did exist" << dendl;
       lfn_close(fd);
     }
   }
@@ -2938,6 +2936,10 @@ int FileStore::_write(coll_t cid, const hobject_t& oid,
 	    << cpp_strerror(r) << dendl;
     goto out;
   }
+
+  struct stat st;
+  ::fstat(fd, &st);
+  dout(10) << " before: size " << st.st_size << " blocks " << st.st_blocks << dendl;
     
   // seek
   actual = ::lseek64(fd, 1234567ull, SEEK_SET);
@@ -2959,6 +2961,9 @@ int FileStore::_write(coll_t cid, const hobject_t& oid,
   r = bl.pwrite_fd(fd, offset);
   if (r == 0)
     r = bl.length();
+
+  ::fstat(fd, &st);
+  dout(10) << " after: size " << st.st_size << " blocks " << st.st_blocks << dendl;
 
   // flush?
   {
@@ -3350,6 +3355,10 @@ void FileStore::flusher_entry()
 	} else 
 	  dout(10) << "flusher_entry JUST closing " << fd << " (stop=" << stop << ", ep=" << ep
 		   << ", sync_epoch=" << sync_epoch << ")" << dendl;
+
+	struct stat st;
+	::fstat(fd, &st);
+	dout(10) << " before close: size " << st.st_size << " blocks " << st.st_blocks << dendl;
 	lfn_close(fd);
       }
       lock.Lock();
