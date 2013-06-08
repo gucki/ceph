@@ -79,6 +79,7 @@ public:
   void shutdown();
 
   uint64_t get_instance_id();
+  epoch_t get_map_epoch();
 
   int create_ioctx(const char *name, IoCtxImpl **io);
 

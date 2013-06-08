@@ -1319,6 +1319,11 @@ uint64_t librados::Rados::get_instance_id()
   return client->get_instance_id();
 }
 
+uint64_t librados::Rados::get_map_epoch()
+{
+  return client->get_map_epoch();
+}
+
 int librados::Rados::conf_read_file(const char * const path) const
 {
   return rados_conf_read_file((rados_t)client, path);
@@ -1629,6 +1634,13 @@ extern "C" uint64_t rados_get_instance_id(rados_t cluster)
   librados::RadosClient *client = (librados::RadosClient *)cluster;
   return client->get_instance_id();
 }
+
+extern "C" uint64_t rados_get_map_epoch(rados_t cluster)
+{
+  librados::RadosClient *client = (librados::RadosClient *)cluster;
+  return client->get_map_epoch();
+}
+
 
 extern "C" void rados_version(int *major, int *minor, int *extra)
 {

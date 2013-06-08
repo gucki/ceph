@@ -704,6 +704,7 @@ namespace librados
     int pool_reverse_lookup(int64_t id, std::string *name);
 
     uint64_t get_instance_id();
+    uint64_t get_map_epoch();
 
     int ioctx_create(const char *name, IoCtx &pioctx);
 

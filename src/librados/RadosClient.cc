@@ -258,6 +258,12 @@ uint64_t librados::RadosClient::get_instance_id()
   return id;
 }
 
+epoch_t librados::RadosClient::get_map_epoch()
+{
+  Mutex::Locker l(lock);
+  return objecter->osdmap->get_epoch();
+}
+
 librados::RadosClient::~RadosClient()
 {
   if (messenger)

@@ -450,6 +450,18 @@ rados_config_t rados_cct(rados_t cluster);
 uint64_t rados_get_instance_id(rados_t cluster);
 
 /**
+ * Return the epoch number for the client's current osdmap
+ *
+ * This exposes the internal epoch number of the current version of
+ * the library's osdmap.  This is not necessarily the most recent
+ * map for the cluster.
+ *
+ * @param cluster cluster handle
+ * @returns client's osdmap epoch
+ */
+uint64_t rados_get_map_epoch(rados_t cluster);
+
+/**
  * Create an io context
  *
  * The io context allows you to perform operations within a particular
