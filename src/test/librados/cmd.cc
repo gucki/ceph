@@ -97,9 +97,16 @@ TEST(LibRadosCmd, PGCmd) {
 
   cmd[0] = (char *)"asdfasdf";
   ASSERT_EQ(-22, rados_pg_command(cluster, pgid.c_str(), (const char **)cmd, 1, "", 0, &buf, &buflen, &st, &stlen));
-  string qstr = "{\"prefix\":\"pg\", \"cmd\":\"query\", \"pgid\":\"" +  pgid + "\"}";
+
+  int64_t epoch = rados_get_map_epoch(cluster);
+  string qstr = "{\"prefix\":\"osdmap wait\", \"epoch\":" + stringify(epoch) + "}";
   cmd[0] = (char *)qstr.c_str();
   ASSERT_EQ(0, rados_pg_command(cluster, pgid.c_str(), (const char **)cmd, 1, "", 0,  &buf, &buflen, &st, &stlen));
+
+  qstr = "{\"prefix\":\"pg\", \"cmd\":\"query\", \"pgid\":\"" +  pgid + "\"}";
+  cmd[0] = (char *)qstr.c_str();
+  ASSERT_EQ(0, rados_pg_command(cluster, pgid.c_str(), (const char **)cmd, 1, "", 0,  &buf, &buflen, &st, &stlen));
+
   ASSERT_LT(0u, buflen);
   rados_buffer_free(buf);
   rados_buffer_free(st);
