@@ -3887,6 +3887,7 @@ void OSD::do_command(Connection *con, tid_t tid, vector<string>& cmd, bufferlist
       r = -EINVAL;
       goto out;
     }
+    dout(10) << "waiting for osdmap " << epoch << dendl;
     if ((int)get_osdmap()->get_epoch() < epoch) {
       monc->sub_want("osdmap", osdmap->get_epoch() + 1, CEPH_SUBSCRIBE_ONETIME);
       monc->renew_subs();
