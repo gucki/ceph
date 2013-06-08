@@ -974,6 +974,7 @@ private:
   }
   utime_t         had_map_since;
   RWLock          map_lock;
+  Cond            map_cond;   // under osd_lock, not map_lock!
   list<OpRequestRef>  waiting_for_osdmap;
 
   Mutex peer_map_epoch_lock;

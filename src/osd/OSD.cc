@@ -3808,6 +3808,9 @@ COMMAND("version", "report version of OSD")
 COMMAND("injectargs " \
 	"name=injected_args,type=CephString,n=N",
 	"inject configuration arguments into running OSD")
+COMMAND("osdmap wait " \
+	"name=epoch,type=CephInt,req=true",
+	"wait for the specified osdmap epoch")
 COMMAND("bench " \
 	"name=count,type=CephInt,req=false " \
 	"name=size,type=CephInt,req=false ", \
@@ -3875,6 +3878,23 @@ void OSD::do_command(Connection *con, tid_t tid, vector<string>& cmd, bufferlist
 
   if (prefix == "version") {
     ds << pretty_version_to_str();
+    goto out;
+  }
+  else if (prefix == "osdmap wait") {
+    int64_t epoch = 0;
+    if (!cmd_getval(g_ceph_context, cmdmap, "epoch", epoch)) {
+      ss << "no epoch specified";
+      r = -EINVAL;
+      goto out;
+    }
+    if ((int)get_osdmap()->get_epoch() < epoch) {
+      monc->sub_want("osdmap", osdmap->get_epoch() + 1, CEPH_SUBSCRIBE_ONETIME);
+      monc->renew_subs();
+      while ((int)get_osdmap()->get_epoch() < epoch) {
+	map_cond.Wait(osd_lock);
+      }
+    }
+    r = 0;
     goto out;
   }
   else if (prefix == "injectargs") {
@@ -5085,6 +5105,8 @@ void OSD::handle_osd_map(MOSDMap *m)
 
   if (do_shutdown)
     shutdown();
+
+  map_cond.Signal();
 
   m->put();
 }
