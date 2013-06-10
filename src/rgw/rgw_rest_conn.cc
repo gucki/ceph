@@ -36,7 +36,35 @@ int RGWRegionConnection::forward(const string& uid, req_info& info, size_t max_r
   list<pair<string, string> > params;
   params.push_back(make_pair<string, string>(RGW_SYS_PARAM_PREFIX "uid", uid));
   params.push_back(make_pair<string, string>(RGW_SYS_PARAM_PREFIX "region", region));
-  RGWRESTClient client(cct, url, NULL, &params);
-  return client.forward_request(key, info, max_response, inbl, outbl);
+  RGWRESTSimpleRequest req(cct, url, NULL, &params);
+  return req.forward_request(key, info, max_response, inbl, outbl);
 }
 
+class StreamObjData : public RGWGetDataCB {
+  rgw_obj obj;
+public:
+    StreamObjData(rgw_obj& _obj) : obj(_obj) {}
+};
+
+int RGWRegionConnection::put_obj_init(const string& uid, rgw_obj& obj, uint64_t obj_size,
+                                      map<string, bufferlist>& attrs, RGWRESTStreamRequest **req)
+{
+  string url;
+  int ret = get_url(url);
+  if (ret < 0)
+    return ret;
+
+  list<pair<string, string> > params;
+  params.push_back(make_pair<string, string>(RGW_SYS_PARAM_PREFIX "uid", uid));
+  params.push_back(make_pair<string, string>(RGW_SYS_PARAM_PREFIX "region", region));
+  *req = new RGWRESTStreamRequest(cct, url, NULL, &params);
+  return (*req)->put_obj_init(key, obj, obj_size, attrs);
+}
+
+int RGWRegionConnection::complete_request(RGWRESTStreamRequest *req)
+{
+  int ret = req->complete();
+  delete req;
+
+  return ret;
+}

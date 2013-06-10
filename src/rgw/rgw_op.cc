@@ -297,6 +297,29 @@ static int rgw_build_policies(RGWRados *store, struct req_state *s, bool only_bu
   s->bucket_acl = new RGWAccessControlPolicy(s->cct);
 
   RGWBucketInfo bucket_info;
+
+  bool source_in_domain = false;
+
+  if (s->copy_source) { /* check if copy source is within the current domain */
+    const char *src = s->copy_source;
+    if (*src == '/')
+      ++src;
+    string copy_source_str(src);
+
+    int pos = copy_source_str.find('/');
+    if (pos > 0)
+      copy_source_str = copy_source_str.substr(0, pos);
+
+    RGWBucketInfo source_info;
+
+    ret = store->get_bucket_info(s->obj_ctx, copy_source_str, source_info, NULL);
+    if (ret == 0) {
+      string& region = source_info.region;
+      source_in_domain = (region.empty() && store->region.is_master) ||
+                         (region == store->region.name);
+    }
+  }
+    
   if (s->bucket_name_str.size()) {
     bool exists = true;
     ret = store->get_bucket_info(s->obj_ctx, s->bucket_name_str, bucket_info, &s->objv_tracker);
@@ -316,10 +339,17 @@ static int rgw_build_policies(RGWRados *store, struct req_state *s, bool only_bu
     s->bucket_owner = s->bucket_acl->get_owner();
 
     string& region = bucket_info.region;
-    if (exists && (region.empty() && !store->region.is_master) &&
-        (region != store->region.name)) {
+    if (exists && ((region.empty() && !store->region.is_master) ||
+        (region != store->region.name))) {
       ldout(s->cct, 0) << "NOTICE: request for data in a different region (" << region << " != " << store->region.name << ")" << dendl;
-      return -ERR_PERMANENT_REDIRECT;
+      /* we now need to make sure that the operation actually requires copy source, that is
+       * it's a copy operation
+       */
+      if (!source_in_domain ||
+          (s->op != OP_PUT && s->op != OP_COPY) ||
+          s->object_str.empty()) {
+        return -ERR_PERMANENT_REDIRECT;
+      }
     }
   }
 
@@ -1742,8 +1772,6 @@ int RGWCopyObj::verify_permission()
   if (ret < 0)
     return ret;
 
-  RGWBucketInfo src_bucket_info, dest_bucket_info;
-
   /* get buckets info (source and dest) */
 
   ret = store->get_bucket_info(s->obj_ctx, src_bucket_name, src_bucket_info, NULL);
@@ -1838,11 +1866,28 @@ void RGWCopyObj::execute()
   src_obj.init(src_bucket, src_object);
   dst_obj.init(dest_bucket, dest_object);
   store->set_atomic(s->obj_ctx, src_obj);
+#if 0
+
+  if ((dest_bucket_info.region.empty() && !store->region.is_master) ||
+      (dest_bucket_info.region != store->region.name)) {
+
+    map<string, bufferlist> src_attrs;
+  
+    int ret = get_obj_attrs(store, s, src_obj, src_attrs
+                         uint64_t *obj_size, RGWObjVersionTracker *objv_tracker)
+
+    int ret = store->rest_conn->put_obj(s->user.user_id, dst_obj, 
+    if (ret < 0)
+      return ret;
+  }
+#endif
   store->set_atomic(s->obj_ctx, dst_obj);
 
   ret = store->copy_obj(s->obj_ctx,
+                        s->user.user_id,
                         dst_obj,
                         src_obj,
+                        dest_bucket_info,
                         &mtime,
                         mod_ptr,
                         unmod_ptr,
