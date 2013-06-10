@@ -90,29 +90,32 @@ public:
   }
 };
 
-class RGWOp_MDLog_Post : public RGWRESTOp {
-  enum {
-    MDLOG_POST_INVALID = 0,
-    MDLOG_POST_LOCK,
-    MDLOG_POST_UNLOCK
-  };
-  int get_post_type() {
-    bool exists;
-    s->info.args.get("lock", &exists);
-    if (exists) 
-      return MDLOG_POST_LOCK;
-    s->info.args.get("unlock", &exists);
-    if (exists)
-      return MDLOG_POST_UNLOCK;
-    return MDLOG_POST_INVALID;
-  }
+class RGWOp_MDLog_Lock : public RGWRESTOp {
 public:
-  RGWOp_MDLog_Post() {}
-  ~RGWOp_MDLog_Post() {}
+  RGWOp_MDLog_Lock() {}
+  ~RGWOp_MDLog_Lock() {}
 
-  int check_caps(RGWUserCaps& caps);
+  int check_caps(RGWUserCaps& caps) {
+    return caps.check_cap("mdlog", RGW_CAP_WRITE);
+  }
   void execute();
-  virtual const char *name();
+  virtual const char *name() {
+    return "lock_mdlog_object";
+  }
+};
+
+class RGWOp_MDLog_Unlock : public RGWRESTOp {
+public:
+  RGWOp_MDLog_Unlock() {}
+  ~RGWOp_MDLog_Unlock() {}
+
+  int check_caps(RGWUserCaps& caps) {
+    return caps.check_cap("mdlog", RGW_CAP_WRITE);
+  }
+  void execute();
+  virtual const char *name() {
+    return "unlock_mdlog_object";
+  }
 };
 
 class RGWOp_MDLog_Delete : public RGWRESTOp {
@@ -126,6 +129,88 @@ public:
   void execute();
   virtual const char *name() {
     return "trim_metadata_log";
+  }
+};
+
+class RGWOp_DATALog_List : public RGWRESTOp {
+  list<rgw_data_change> entries;
+  int http_ret;
+public:
+  RGWOp_DATALog_List() : http_ret(0) {}
+  ~RGWOp_DATALog_List() {}
+
+  int check_caps(RGWUserCaps& caps) {
+    return caps.check_cap("datalog", RGW_CAP_READ);
+  }
+  int verify_permission() {
+    return check_caps(s->user.caps);
+  }
+  void execute();
+  virtual void send_response();
+  virtual const char *name() {
+    return "list_data_changes_log";
+  }
+};
+
+class RGWOp_DATALog_GetShardsInfo : public RGWRESTOp {
+  unsigned num_objects;
+  int http_ret;
+public:
+  RGWOp_DATALog_GetShardsInfo() : num_objects(0), http_ret(0) {}
+  ~RGWOp_DATALog_GetShardsInfo() {}
+
+  int check_caps(RGWUserCaps& caps) {
+    return caps.check_cap("datalog", RGW_CAP_READ);
+  }
+  int verify_permission() {
+    return check_caps(s->user.caps);
+  }
+  void execute();
+  virtual void send_response();
+  virtual const char *name() {
+    return "get_data_changes_log_shards_info";
+  }
+};
+
+class RGWOp_DATALog_Lock : public RGWRESTOp {
+public:
+  RGWOp_DATALog_Lock() {}
+  ~RGWOp_DATALog_Lock() {}
+
+  int check_caps(RGWUserCaps& caps) {
+    return caps.check_cap("datalog", RGW_CAP_WRITE);
+  }
+  void execute();
+  virtual const char *name() {
+    return "lock_datalog_object";
+  }
+};
+
+class RGWOp_DATALog_Unlock : public RGWRESTOp {
+public:
+  RGWOp_DATALog_Unlock() {}
+  ~RGWOp_DATALog_Unlock() {}
+
+  int check_caps(RGWUserCaps& caps) {
+    return caps.check_cap("datalog", RGW_CAP_WRITE);
+  }
+  void execute();
+  virtual const char *name() {
+    return "unlock_datalog_object";
+  }
+};
+
+class RGWOp_DATALog_Delete : public RGWRESTOp {
+public:
+  RGWOp_DATALog_Delete() {}
+  ~RGWOp_DATALog_Delete() {}
+
+  int check_caps(RGWUserCaps& caps) {
+    return caps.check_cap("datalog", RGW_CAP_WRITE);
+  }
+  void execute();
+  virtual const char *name() {
+    return "trim_data_changes_log";
   }
 };
 
