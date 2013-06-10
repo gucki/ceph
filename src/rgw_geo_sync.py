@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 
-import logging
-import json
-import sys
-import requests
-import boto
-import time
 import binascii
+import boto
 import inspect
+import json
+import logging
+import random
+import requests
+import string
+import sys
+import time
 
 import boto.s3.acl
 import boto.s3.connection
@@ -22,6 +24,10 @@ access_key_source = '85OKY95S2US1LB4Z4ZYI' #buck
 secret_key_source = 'wy4DkpcGG+fAuOMfYPYAI37P7Qe2kg+oQpZIqByk'
 access_key_dest = '95OKY95S2US1LB4Z4ZYI'
 secret_key_dest = 'zy4DkpcGG+fAuOMfYPYAI37P7Qe2kg+oQpZIqByl'
+log_lock_time = 60 #seconds
+
+# generates an N character random string from letters and digits
+local_lock_id = ''.join(random.choice(string.ascii_letters + string.digits) for x in range(16)) #32 digits for now
 
 def add_user_to_remote(source_conn, dest_conn, uid, tag, ver):
 
@@ -34,7 +40,7 @@ def add_user_to_remote(source_conn, dest_conn, uid, tag, ver):
     args = {}
     args['key'] = src_acct()['data']['user_id']
 
-    outData = json.dumps(src_acct)
+    outData = json.dumps(src_acct())
 
     (ret, dest_acct) = rgwadmin_rest(dest_conn, ['metadata', 'userput'], args, data=outData)
 
@@ -63,7 +69,25 @@ def check_individual_user(source_conn, dest_conn, uid, tag, ver):
             print 'uid: ', uid, ' local_ver: ', ver, ' == dest_ver: ', dest_ver 
 
 # metadata changes are grouped into shards based on [ uid | tag ] TODO, figure this out
-def process_source_shard(source_conn, dest_conn, log_entry_list):
+#def process_source_shard(source_conn, dest_conn, log_entry_list):
+def process_source_shard(source_conn, dest_conn, shard_num):
+
+    print 'lock id:', local_lock_id 
+
+    start_time = time.time()
+
+    # first, lock the log
+    (ret, out) = rgwadmin_rest(source_conn, ['log', 'lock'], {"type":"metadata", "id":shard_num, "length":log_lock_time, "lock_id":local_lock_id})
+    print 'lock log returned: ', ret
+
+    (ret, out) = rgwadmin_rest(source_conn, ['log', 'list'], {"type":"metadata", "id":shard_num})
+    print 'metadata list returned: ', ret
+    log_entry_list = out()
+
+    #if (log_entry_list):
+    #    print 'No data for shard ', shard_num
+    #    return
+
     perUserVersionDict = {}
     # sort the data by reverse status (so write comes prior to completed)
     mySorted = sorted(log_entry_list, key=lambda entry: entry['data']['status']['status'], reverse=True)
@@ -90,10 +114,14 @@ def process_source_shard(source_conn, dest_conn, log_entry_list):
         uid, tag = key.split('@')
         check_individual_user(source_conn, dest_conn, uid, tag, perUserVersionDict[key])
 
+    # finally, unlock the log
+    (ret, out) = rgwadmin_rest(source_conn, ['log', 'unlock'], {"type":"metadata", "id":shard_num, "lock_id":local_lock_id})
+    print 'metadata log unlock returned: ', ret
+
 def rgwadmin_rest(connection, cmd, params=None, headers=None, raw=False, data=None):
     log.info('radosgw-admin-rest: %s %s' % (cmd, params))
     put_cmds = ['create', 'link', 'add', 'userput']
-    post_cmds = ['unlink', 'modify']
+    post_cmds = ['unlink', 'modify', 'lock', 'unlock']
     delete_cmds = ['trim', 'rm', 'process']
     get_cmds = ['check', 'info', 'show', 'list', 'get', 'userget']
 
@@ -102,6 +130,7 @@ def rgwadmin_rest(connection, cmd, params=None, headers=None, raw=False, data=No
     #zone_sub_resources = ['pool', 'log', 'garbage']
     zone_sub_resources = ['pool', 'garbage']
     mdlog_sub_resources= ['mdlog']
+    log_sub_resources = ['lock', 'unlock']
 
     def get_cmd_method_and_handler(cmd):
         if cmd[1] in put_cmds:
@@ -141,7 +170,7 @@ def rgwadmin_rest(connection, cmd, params=None, headers=None, raw=False, data=No
             if len(cmd) == 2 and cmd[1]=='list':
                 return 'log/'+cmd[1], ''
             else:
-                return 'log', ''
+                return 'log', cmd[0]
 
     """
         Adapted from the build_request() method of boto.connection
@@ -238,9 +267,8 @@ def main():
   print 'We have ', numObjects, ' master objects to check'
 
   for i in xrange(numObjects):
-    (ret, out) = rgwadmin_rest(conn_source, ['log', 'list'], {"type":"metadata", "id":i})
-    if (out()): 
-        process_source_shard(conn_source, conn_dest, out())
+    #process_source_shard(conn_source, conn_dest, out())
+    process_source_shard(conn_source, conn_dest, i)
 
   (ret, out) = rgwadmin_rest(conn_dest, ['log', 'list'], {"type":"metadata"})
   print 'ret: ', ret
@@ -248,13 +276,6 @@ def main():
   numObjects = out()['num_objects']
   print 'We have ', numObjects, ' dest objects to check'
 
-  #(ret, out) = rgwadmin_rest(conn_source, ['metadata', 'userget'], {"key":"buck"})
-  #print 'ret: ', ret
-  #print 'out: ', out()
-
-  #(ret, out) = rgwadmin_rest(conn_dest, ['metadata', 'userget'], {"key":"buck"})
-  #print 'ret: ', ret
-  #print 'out: ', out()
 
 
 if __name__ == '__main__':
