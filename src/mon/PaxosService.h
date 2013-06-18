@@ -196,7 +196,6 @@ public:
       last_committed_name("last_committed"),
       first_committed_name("first_committed"),
       last_accepted_name("last_accepted"),
-      mkfs_name("mkfs"),
       full_version_name("full"), full_latest_name("latest"),
       cached_first_committed(0), cached_last_committed(0)
   {
@@ -863,14 +862,7 @@ public:
     string key = mon->store->combine_strings(prefix, name);
     t->put(get_service_name(), key, bl);
   }
-  /**
-   * Remove our mkfs entry from the store
-   *
-   * @param t A transaction to which we will add this erase operation
-   */
-  void erase_mkfs(MonitorDBStore::Transaction *t) {
-    t->erase(mkfs_name, get_service_name());
-  }
+
   /**
    * @}
    */
@@ -983,16 +975,6 @@ public:
   version_t get_value(const string& key) {
     return mon->store->get(get_service_name(), key);
   }
-  /**
-   * Get the contents of our mkfs entry
-   *
-   * @param bl A bufferlist to populate with the contents of the entry
-   * @return 0 on success; <0 otherwise
-   */
-  int get_mkfs(bufferlist& bl) {
-    return mon->store->get(mkfs_name, get_service_name(), bl);
-  }
-
 
   /**
    * @}
